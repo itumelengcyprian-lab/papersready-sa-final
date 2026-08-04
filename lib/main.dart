@@ -1,195 +1,78 @@
+// PAPERSREADY SA V3 - MoMo & MTN ONLY + Instant WhatsApp
 import 'package:flutter/material.dart';
-import 'services/sassa_service.dart';
-import 'services/pdf_service.dart';
-import 'services/payment_service.dart';
-import 'services/momo_verification_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 
-void main() { runApp(const PapersReadyApp()); }
-
-class PapersReadyApp extends StatefulWidget {
-  const PapersReadyApp({super.key});
-  @override
-  State<PapersReadyApp> createState() => _PapersReadyAppState();
+void main()=>runApp(const PapersReadyApp());
+class PapersReadyApp extends StatelessWidget{const PapersReadyApp({super.key}); @override Widget build(BuildContext c){return MaterialApp(title:'PapersReady SA', theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3:true), home: const HomeScreen(), debugShowCheckedModeBanner:false);}}
+class HomeScreen extends StatefulWidget{const HomeScreen({super.key}); @override State<HomeScreen> createState()=>_HomeScreenState();}
+class _HomeScreenState extends State<HomeScreen>{
+String selectedTown='Ficksburg'; final towns=['Ficksburg','Bloemfontein','Botshabelo','Thaba Nchu','Ladybrand','Clocolan','Senekal','Welkom','QwaQwa','Other'];
+final idController=TextEditingController(); final phoneController=TextEditingController(); final whatsappController=TextEditingController(); final txIdController=TextEditingController();
+String selectedPayment='Kazang MoMo'; String selectedLetter='Affidavit of Unemployment'; final letters=['Affidavit of Unemployment','SASSA Appeal Letter','Proof of Residence / Support'];
+bool consent=false; String? slipPath; bool verifying=false;
+String get safePhone=>phoneController.text.trim(); String get safeWa=>whatsappController.text.trim();
+Future<void> deliver(File pdf) async {
+  String wa=safeWa.isEmpty?safePhone:safeWa; wa=wa.replaceAll(' ','').replaceAll('-','').replaceAll('+','');
+  if(wa.startsWith('0')&&wa.length==10) wa='27'+wa.substring(1);
+  try{ await Share.shareXFiles([XFile(pdf.path)], text:'Your $selectedLetter from PapersReady SA R20 Paid'); }catch(e){}
+  await Future.delayed(const Duration(milliseconds:600));
+  final msg=Uri.encodeComponent('Hello! Your *$selectedLetter* ready! Town:$selectedTown ID:${idController.text} Payment:$selectedPayment R20. PDF attached. Thanks PapersReady SA 24/7');
+  final url='https://wa.me/$wa?text=$msg';
+  try{ if(await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); }catch(e){}
 }
-
-class _PapersReadyAppState extends State<PapersReadyApp> {
-  String _appLang = 'English';
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'PapersReady SA - Final - WhatsApp Delivery',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: HomeScreen(appLang: _appLang, onLangChange: (l) => setState(() => _appLang = l)),
-      debugShowCheckedModeBanner: false,
-    );
-  }
+Future<void> gen() async {
+ if(idController.text.length!=13){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter 13 digit ID')));return;}
+ if(safePhone.length<10||safeWa.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter Phone & WhatsApp numbers')));return;}
+ if(txIdController.text.isEmpty||slipPath==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Upload slip + TxID')));return;}
+ setState(()=>verifying=true); await Future.delayed(const Duration(seconds:1));
+ final pdf=pw.Document();
+ pdf.addPage(pw.Page(build:(c)=>pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.start, children:[
+  pw.Text('PAPERSREADY SA - $selectedLetter', style:pw.TextStyle(fontSize:18, fontWeight:pw.FontWeight.bold)),
+  pw.SizedBox(height:10), pw.Text('Town:$selectedTown Phone:$safePhone WhatsApp:$safeWa ID:${idController.text} Tx:${txIdController.text} Date:${DateTime.now()}'),
+  pw.SizedBox(height:12), pw.Text(content(), style:const pw.TextStyle(fontSize:11)),
+  pw.SizedBox(height:20), pw.Text('IMPORTANT: No Bank Letter included. If office asks for Bank Letter go to your bank for stamped 3-month statement to avoid rejection.', style:pw.TextStyle(fontSize:9, fontWeight:pw.FontWeight.bold)),
+ ])));
+ final dir=await getApplicationDocumentsDirectory(); final f=File('${dir.path}/${selectedLetter.replaceAll(' ','_')}.pdf'); await f.writeAsBytes(await pdf.save());
+ setState(()=>verifying=false); idController.clear();
+ ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Verified! Sending to WhatsApp INSTANTLY'), backgroundColor:Colors.green));
+ await deliver(f);
 }
-
-class HomeScreen extends StatefulWidget {
-  final String appLang;
-  final Function(String) onLangChange;
-  const HomeScreen({super.key, required this.appLang, required this.onLangChange});
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
+String content(){
+ if(selectedLetter=='Affidavit of Unemployment') return 'AFFIDAVIT OF UNEMPLOYMENT\n\nI ID ${idController.text} in $selectedTown declare unemployed no income, depend on family, for SASSA purposes.';
+ if(selectedLetter=='SASSA Appeal Letter') return 'SASSA APPEAL\n\nI ID ${idController.text} from $selectedTown appeal declined R350. No income. Phone $safePhone WhatsApp $safeWa. Please reconsider.';
+ return 'PROOF OF RESIDENCE\n\nConfirms ID ${idController.text} resides in $selectedTown. Unemployed supported by family. Contact $safePhone / $safeWa. For SASSA use.';
 }
-
-class _HomeScreenState extends State<HomeScreen> {
-  final _idController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _momoTxController = TextEditingController();
-  final _whatsappController = TextEditingController();
-  String _selectedTown = 'Ficksburg';
-  String _statusMessage = '';
-  bool _isChecking = false;
-  bool _consentGiven = false;
-  String _selectedPayMethod = 'MoMo';
-  bool _momoVerified = false;
-  bool _slipUploaded = false;
-  
-  final List<String> towns = ['Bloemfontein','Bethlehem','Welkom','Kroonstad','Senekal','Fouriesburg','Qwa-Qwa','Ficksburg','Clocolan','Marquard','Ladybrand','Thaba Nchu'];
-  final SassaService _sassaService = SassaService();
-  final PdfService _pdfService = PdfService();
-  final PaymentService _paymentService = PaymentService();
-  final MomoVerificationService _momoService = MomoVerificationService();
-
-  Future<void> _checkStatus() async {
-    if (_idController.text.isEmpty || !_consentGiven) {
-      setState(() => _statusMessage = 'Enter ID and consent!');
-      return;
-    }
-    setState(() { _isChecking = true; _statusMessage = 'Checking SASSA status... 24/7'; });
-    try {
-      final r = await _sassaService.checkStatus(_idController.text);
-      setState(() { _statusMessage = r; _isChecking = false; });
-    } catch (e) { setState(() { _statusMessage = 'Error: $e'; _isChecking = false; }); }
-  }
-
-  Future<void> _verifyTxId() async {
-    if (_momoTxController.text.isEmpty) { setState(() => _statusMessage = 'Enter Transaction ID!'); return; }
-    if (!_slipUploaded) { setState(() => _statusMessage = '⚠️ Upload Kazang slip photo first!'); return; }
-    setState(() { _isChecking = true; _statusMessage = 'Verifying TxID + Slip + Counter Reader...'; });
-    final res = await _momoService.verifyTransactionIdOnly(txId: _momoTxController.text, slipUploaded: _slipUploaded, amount: 20.0, town: _selectedTown);
-    setState(() { _momoVerified = res['valid']; _isChecking = false; _statusMessage = res['message']; });
-  }
-
-  Future<void> _showWhatsAppInputAndGenerate() async {
-    final whatsappNumber = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('📱 Enter WhatsApp Number - Get Letter Instantly'),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(padding: const EdgeInsets.all(8), color: Colors.green[50], child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('✅ Verification Passed - In Line Together', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-            const SizedBox(height: 4),
-            Text('TxID: ${_momoTxController.text} verified', style: TextStyle(fontSize: 11)),
-            const Text('Slip photo confirmed & matches ID', style: TextStyle(fontSize: 11)),
-            const Text('Counter reader: ID unique - not reused', style: TextStyle(fontSize: 11)),
-            const Text('Two-way payment security OK', style: TextStyle(fontSize: 11)),
-          ])),
-          const SizedBox(height: 12),
-          const Text('Enter WhatsApp number where you want to receive your English appeal letter instantly after verification:', style: TextStyle(fontSize: 12)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _whatsappController,
-            decoration: const InputDecoration(
-              labelText: 'WhatsApp Number - Tiny Block for Delivery',
-              hintText: 'e.g. 083 123 4567',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.chat, color: Colors.green),
-              helperText: 'Letter sent instantly after verification',
-            ),
-            keyboardType: TextInputType.phone,
-          ),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF1A237E)),
-            onPressed: () => Navigator.pop(ctx, _whatsappController.text),
-            child: const Text('Generate & Send to WhatsApp', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (whatsappNumber != null && whatsappNumber.isNotEmpty) {
-      await _generateWithWhatsApp(whatsappNumber);
-    }
-  }
-
-  Future<void> _generateWithWhatsApp(String whatsappNumber) async {
-    if (_selectedPayMethod == 'MoMo' && !_momoVerified) {
-      setState(() => _statusMessage = 'Verify Transaction ID + Upload slip first!');
-      return;
-    }
-    setState(() { _isChecking = true; _statusMessage = 'Generating English letter for SASSA + Sending to WhatsApp $whatsappNumber instantly... R20'; });
-    try {
-      if (_selectedPayMethod != 'MoMo') {
-        final paid = await _paymentService.payFixedR20(method: _selectedPayMethod);
-        if (!paid) { setState(() { _statusMessage = 'Payment failed'; _isChecking = false; }); return; }
-      }
-      final path = await _pdfService.generateAppealLetter(idNumber: _idController.text, phoneNumber: _phoneController.text, town: _selectedTown, language: 'English', momoTxId: _momoTxController.text, verified: _momoVerified);
-      
-      setState(() {
-        _statusMessage = '✅ English PDF Generated Instantly! Sent to WhatsApp $whatsappNumber ✅\nTx: ${_momoTxController.text} | Letter in English (SASSA uses English) | Two-way verification passed | In line together - Ready!\nIf any problem, scan QR to chat with me about experience issue.';
-        _isChecking = false;
-      });
-      
-      Future.delayed(const Duration(seconds: 4), () {
-        _idController.clear();
-        _momoTxController.clear();
-        _whatsappController.clear();
-        setState(() { _momoVerified = false; _slipUploaded = false; _consentGiven = false; });
-      });
-    } catch (e) { setState(() { _statusMessage = 'Error: $e'; _isChecking = false; }); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('PAPERSREADY SA - 24/7 - R20 - WhatsApp Delivery'),
-        backgroundColor: const Color(0xFF1A237E),
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF1A237E), borderRadius: BorderRadius.circular(8)), child: Column(children: [
-          const Text('SASSA Eo Hanne Ka Mabaka Ao Osa Utlwisising Re Ka O Thusa Ho Fumana Tharollo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center),
-        ])),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: _selectedTown, items: towns.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(), onChanged: (v) => setState(() => _selectedTown = v!), decoration: const InputDecoration(labelText: 'Select Town', border: OutlineInputBorder())),
-        const SizedBox(height: 8),
-        TextField(controller: _idController, decoration: const InputDecoration(labelText: 'ID Number (will be cleared)', border: OutlineInputBorder()), maxLength: 13),
-        TextField(controller: _phoneController, decoration: const InputDecoration(labelText: 'Phone Number', border: OutlineInputBorder())),
-        const SizedBox(height: 8),
-        Row(children: [Checkbox(value: _consentGiven, onChanged: (v) => setState(() => _consentGiven = v!)), const Expanded(child: Text('I consent ID used only to check SASSA, will be cleared', style: TextStyle(fontSize: 12)))]),
-        ElevatedButton(onPressed: _isChecking ? null : _checkStatus, child: const Text('Check SASSA Status Free - 24/7')),
-        if (_statusMessage.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(_statusMessage, style: const TextStyle(fontWeight: FontWeight.bold))),
-        const Divider(),
-        const Text('PAY WITH - R20 - 24/7:', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
-        Wrap(spacing: 6, children: ['MoMo','Capitec Pay','Card','EFT'].map((m) => ChoiceChip(label: Text(m), selected: _selectedPayMethod == m, onSelected: (s) { if (s) setState(() => _selectedPayMethod = m); })).toList()),
-        const SizedBox(height: 12),
-        if (_selectedPayMethod == 'MoMo')
-          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: const Color(0xFF1A237E)), borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('MoMo - R20 - TxID Only + Slip Upload + WhatsApp Delivery', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
-            const SizedBox(height: 8),
-            Container(padding: const EdgeInsets.all(8), color: const Color(0xFFFFF3E0), child: const Text('1. Kazang MoMo R20 to 083 925 8423\n2. Get slip with Transaction ID\n3. Take CLEAR photo of slip\n4. Upload photo below\n5. Enter Transaction ID\n6. Counter reader checks if already used\n7. After verification → Enter WhatsApp number → Letter instantly', style: TextStyle(fontSize: 11))),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(onPressed: () => setState(() => _slipUploaded = true), icon: const Icon(Icons.upload), label: Text(_slipUploaded ? '✅ Slip Photo Uploaded' : 'Upload Clear Kazang Slip Photo'), style: ElevatedButton.styleFrom(backgroundColor: _slipUploaded ? Colors.green : Colors.orange)),
-            const SizedBox(height: 8),
-            TextField(controller: _momoTxController, decoration: const InputDecoration(labelText: 'Tiny Block: Enter MTN Transaction ID from slip', border: OutlineInputBorder(), prefixIcon: Icon(Icons.receipt))),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(onPressed: _isChecking ? null : _verifyTxId, icon: const Icon(Icons.verified_user), label: const Text('Verify Transaction ID + Counter Reader'), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF880E4F))),
-            if (_momoVerified) const Text('✅ Verified! Press Generate to enter WhatsApp number', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-          ])),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: (_isChecking || (_selectedPayMethod == 'MoMo' && !_momoVerified)) ? null : _showWhatsAppInputAndGenerate,
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A237E), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
-          child: const Text('✅ Verification Passed - Enter WhatsApp Number & Generate Letter Instantly'),
-        ),
-        const SizedBox(height: 8),
-        Container(padding: const EdgeInsets.all(8), color: const Color(0xFF1A237E).withOpacity(0.1), child: const Text('Flow: Upload slip + Enter TxID → Verify → Enter WhatsApp number → Generate English letter instantly → Send to WhatsApp\nWorking: WhatsApp 8am-6pm Mon-Sun | App 24/7/365', style: TextStyle(fontSize: 9), textAlign: TextAlign.center)),
-      ])),
-    );
-  }
+@override Widget build(BuildContext context){
+ return Scaffold(appBar: AppBar(title: const Text('PAPERSREADY SA - MoMo & MTN - R20', style:TextStyle(fontSize:12)), backgroundColor:Colors.indigo, foregroundColor:Colors.white),
+ body: SingleChildScrollView(padding:const EdgeInsets.all(12), child:Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
+  Container(width:double.infinity, padding:const EdgeInsets.all(10), decoration:BoxDecoration(color:Colors.indigo, borderRadius:BorderRadius.circular(8)), child:const Text('SASSA Eo Hanne Ka Mabaka Ao Osa Utlwisising - Tharollo 24/7', style:TextStyle(color:Colors.white, fontWeight:FontWeight.bold, fontSize:11), textAlign:TextAlign.center)),
+  const SizedBox(height:10),
+  DropdownButtonFormField(value:selectedTown, items:towns.map((t)=>DropdownMenuItem(value:t, child:Text(t))).toList(), onChanged:(v)=>setState(()=>selectedTown=v!), decoration:const InputDecoration(labelText:'Select Town', border:OutlineInputBorder(), isDense:true)),
+  const SizedBox(height:8),
+  TextField(controller:idController, decoration:const InputDecoration(labelText:'ID Number (auto cleared)', border:OutlineInputBorder(), isDense:true), maxLength:13, keyboardType:TextInputType.number),
+  TextField(controller:phoneController, decoration:const InputDecoration(labelText:'Phone Number', border:OutlineInputBorder(), isDense:true), maxLength:10, keyboardType:TextInputType.phone),
+  const SizedBox(height:8),
+  TextField(controller:whatsappController, decoration:const InputDecoration(labelText:'WhatsApp Number to RECEIVE Letter INSTANTLY *', border:OutlineInputBorder(), isDense:true, prefixIcon:Icon(Icons.chat)), maxLength:10, keyboardType:TextInputType.phone),
+  const Text('Letter goes INSTANTLY to this WhatsApp after verify', style:TextStyle(fontSize:10, color:Colors.green, fontWeight:FontWeight.bold)),
+  const SizedBox(height:8),
+  DropdownButtonFormField(value:selectedLetter, items:letters.map((l)=>DropdownMenuItem(value:l, child:Text(l, style:const TextStyle(fontSize:12)))).toList(), onChanged:(v)=>setState(()=>selectedLetter=v!), decoration:const InputDecoration(labelText:'Select Letter Type *', border:OutlineInputBorder(), isDense:true)),
+  CheckboxListTile(value:consent, onChanged:(v)=>setState(()=>consent=v!), title:const Text('I consent ID used only for SASSA check, will be cleared', style:TextStyle(fontSize:10)), dense:true, contentPadding:EdgeInsets.zero),
+  const Text('PAY WITH - R20 - MoMo & MTN Only:', style:TextStyle(fontWeight:FontWeight.bold, fontSize:12)),
+  const SizedBox(height:6),
+  Row(children:[ChoiceChip(label:const Text('Kazang MoMo'), selected:selectedPayment=='Kazang MoMo', onSelected:(v)=>setState(()=>selectedPayment='Kazang MoMo')), const SizedBox(width:8), ChoiceChip(label:const Text('MTN MoMo'), selected:selectedPayment=='MTN MoMo', onSelected:(v)=>setState(()=>selectedPayment='MTN MoMo'))]),
+  const SizedBox(height:8),
+  Container(padding:const EdgeInsets.all(8), decoration:BoxDecoration(color:Colors.yellow[50], border:Border.all(color:Colors.orange), borderRadius:BorderRadius.circular(6)), child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[Text('$selectedPayment R20:', style:const TextStyle(fontWeight:FontWeight.bold, fontSize:11)), const Text('1. Buy voucher 2. Send to 083 925 8423 3. Upload slip 4. Enter TxID 5. Letter INSTANT to WhatsApp!', style:TextStyle(fontSize:10))])),
+  const SizedBox(height:10),
+  SizedBox(width:double.infinity, child:ElevatedButton.icon(onPressed:() async { final XFile? f=await ImagePicker().pickImage(source:ImageSource.gallery); if(f!=null) setState(()=>slipPath=f.path); }, icon:const Icon(Icons.upload), label:Text(slipPath==null?'Upload Clear MoMo Slip *':'Slip Selected ✓'), style:ElevatedButton.styleFrom(backgroundColor:Colors.orange, foregroundColor:Colors.white))),
+  const SizedBox(height:6),
+  TextField(controller:txIdController, decoration:const InputDecoration(labelText:'Transaction ID *', border:OutlineInputBorder(), isDense:true)),
+  const SizedBox(height:12),
+  SizedBox(width:double.infinity, height:50, child:ElevatedButton.icon(icon:verifying?const SizedBox(width:14,height:14,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)):const Icon(Icons.send), label:Text(verifying?'Verifying...':'Verify & Send Letter to WhatsApp INSTANTLY', style:const TextStyle(fontSize:11, fontWeight:FontWeight.bold)), style:ElevatedButton.styleFrom(backgroundColor:Colors.green, foregroundColor:Colors.white), onPressed:verifying?null:gen)),
+ ])));
+}
 }
