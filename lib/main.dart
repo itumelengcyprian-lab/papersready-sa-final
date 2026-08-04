@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
               labelText: 'WhatsApp Number - Tiny Block for Delivery',
               hintText: 'e.g. 083 123 4567',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.whatsapp, color: Colors.green),
+              prefixIcon: Icon(Icons.chat, color: Colors.green),
               helperText: 'Letter sent instantly after verification',
             ),
             keyboardType: TextInputType.phone,
