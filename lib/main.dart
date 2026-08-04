@@ -1,4 +1,4 @@
-// PAPERSREADY SA V3 - MoMo & MTN ONLY + Instant WhatsApp
+// PAPERSREADY SA V4 - Fixed Layout per Boss request
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
@@ -13,7 +13,7 @@ class HomeScreen extends StatefulWidget{const HomeScreen({super.key}); @override
 class _HomeScreenState extends State<HomeScreen>{
 String selectedTown='Ficksburg'; final towns=['Ficksburg','Bloemfontein','Botshabelo','Thaba Nchu','Ladybrand','Clocolan','Senekal','Welkom','QwaQwa','Other'];
 final idController=TextEditingController(); final phoneController=TextEditingController(); final whatsappController=TextEditingController(); final txIdController=TextEditingController();
-String selectedPayment='Kazang MoMo'; String selectedLetter='Affidavit of Unemployment'; final letters=['Affidavit of Unemployment','SASSA Appeal Letter','Proof of Residence / Support'];
+String selectedLetter='Affidavit of Unemployment'; final letters=['Affidavit of Unemployment','SASSA Appeal Letter','Proof of Residence / Support'];
 bool consent=false; String? slipPath; bool verifying=false;
 String get safePhone=>phoneController.text.trim(); String get safeWa=>whatsappController.text.trim();
 Future<void> deliver(File pdf) async {
@@ -21,14 +21,16 @@ Future<void> deliver(File pdf) async {
   if(wa.startsWith('0')&&wa.length==10) wa='27'+wa.substring(1);
   try{ await Share.shareXFiles([XFile(pdf.path)], text:'Your $selectedLetter from PapersReady SA R20 Paid'); }catch(e){}
   await Future.delayed(const Duration(milliseconds:600));
-  final msg=Uri.encodeComponent('Hello! Your *$selectedLetter* ready! Town:$selectedTown ID:${idController.text} Payment:$selectedPayment R20. PDF attached. Thanks PapersReady SA 24/7');
+  final msg=Uri.encodeComponent('Hello! Your *$selectedLetter* ready! Town:$selectedTown ID:${idController.text} R20. PDF attached. PapersReady SA 24/7');
   final url='https://wa.me/$wa?text=$msg';
   try{ if(await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); }catch(e){}
 }
 Future<void> gen() async {
  if(idController.text.length!=13){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter 13 digit ID')));return;}
- if(safePhone.length<10||safeWa.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter Phone & WhatsApp numbers')));return;}
- if(txIdController.text.isEmpty||slipPath==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Upload slip + TxID')));return;}
+ if(safePhone.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter Phone Number')));return;}
+ if(!consent){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Please tick consent')));return;}
+ if(safeWa.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter WhatsApp number at bottom to receive letter')));return;}
+ if(txIdController.text.isEmpty||slipPath==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter Transaction ID and upload slip')));return;}
  setState(()=>verifying=true); await Future.delayed(const Duration(seconds:1));
  final pdf=pw.Document();
  pdf.addPage(pw.Page(build:(c)=>pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.start, children:[
@@ -56,23 +58,34 @@ String content(){
   const SizedBox(height:8),
   TextField(controller:idController, decoration:const InputDecoration(labelText:'ID Number (auto cleared)', border:OutlineInputBorder(), isDense:true), maxLength:13, keyboardType:TextInputType.number),
   TextField(controller:phoneController, decoration:const InputDecoration(labelText:'Phone Number', border:OutlineInputBorder(), isDense:true), maxLength:10, keyboardType:TextInputType.phone),
-  const SizedBox(height:8),
-  TextField(controller:whatsappController, decoration:const InputDecoration(labelText:'WhatsApp Number to RECEIVE Letter INSTANTLY *', border:OutlineInputBorder(), isDense:true, prefixIcon:Icon(Icons.chat)), maxLength:10, keyboardType:TextInputType.phone),
-  const Text('Letter goes INSTANTLY to this WhatsApp after verify', style:TextStyle(fontSize:10, color:Colors.green, fontWeight:FontWeight.bold)),
-  const SizedBox(height:8),
+  const SizedBox(height:4),
+  CheckboxListTile(value:consent, onChanged:(v)=>setState(()=>consent=v!), title:const Text('I consent my info goes straight to SASSA for checking, ID will be cleared after', style:TextStyle(fontSize:10, fontWeight:FontWeight.w500)), dense:true, contentPadding:EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading),
+  SizedBox(width:double.infinity, child: ElevatedButton.icon(icon:const Icon(Icons.search, size:16), label:const Text('Check SASSA Status Free - 24/7', style:TextStyle(fontSize:11)), style:ElevatedButton.styleFrom(backgroundColor:Colors.indigo[100]), onPressed:consent?(){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('SASSA Free Check - Service Running 24/7')));} : null)),
+  const SizedBox(height:12),
   DropdownButtonFormField(value:selectedLetter, items:letters.map((l)=>DropdownMenuItem(value:l, child:Text(l, style:const TextStyle(fontSize:12)))).toList(), onChanged:(v)=>setState(()=>selectedLetter=v!), decoration:const InputDecoration(labelText:'Select Letter Type *', border:OutlineInputBorder(), isDense:true)),
-  CheckboxListTile(value:consent, onChanged:(v)=>setState(()=>consent=v!), title:const Text('I consent ID used only for SASSA check, will be cleared', style:TextStyle(fontSize:10)), dense:true, contentPadding:EdgeInsets.zero),
-  const Text('PAY WITH - R20 - MoMo & MTN Only:', style:TextStyle(fontWeight:FontWeight.bold, fontSize:12)),
-  const SizedBox(height:6),
-  Row(children:[ChoiceChip(label:const Text('Kazang MoMo'), selected:selectedPayment=='Kazang MoMo', onSelected:(v)=>setState(()=>selectedPayment='Kazang MoMo')), const SizedBox(width:8), ChoiceChip(label:const Text('MTN MoMo'), selected:selectedPayment=='MTN MoMo', onSelected:(v)=>setState(()=>selectedPayment='MTN MoMo'))]),
+  const SizedBox(height:12),
+  Chip(label: Row(mainAxisSize: MainAxisSize.min, children: const [Icon(Icons.mobile_friendly, size:16, color:Colors.white), SizedBox(width:6), Text('MTN MoMo', style:TextStyle(color:Colors.white, fontWeight:FontWeight.bold))]), backgroundColor: Colors.yellow[700]),
   const SizedBox(height:8),
-  Container(padding:const EdgeInsets.all(8), decoration:BoxDecoration(color:Colors.yellow[50], border:Border.all(color:Colors.orange), borderRadius:BorderRadius.circular(6)), child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[Text('$selectedPayment R20:', style:const TextStyle(fontWeight:FontWeight.bold, fontSize:11)), const Text('1. Buy voucher 2. Send to 083 925 8423 3. Upload slip 4. Enter TxID 5. Letter INSTANT to WhatsApp!', style:TextStyle(fontSize:10))])),
+  Container(padding:const EdgeInsets.all(10), decoration:BoxDecoration(color:const Color(0xFFFFF9C4), border:Border.all(color:Colors.orange), borderRadius:BorderRadius.circular(8)), child: Column(crossAxisAlignment:CrossAxisAlignment.start, children: const [
+    Text('MTN MoMo R20:', style:TextStyle(fontWeight:FontWeight.bold, fontSize:12)),
+    SizedBox(height:4),
+    Text('1. Buy MTN MoMo voucher (R20) at any shop', style:TextStyle(fontSize:10)),
+    Text('2. Voucher also available at Kazang / Flash machines in local shops', style:TextStyle(fontSize:10, fontWeight:FontWeight.bold)),
+    Text('3. Send to: 083 925 8423', style:TextStyle(fontSize:10, fontWeight:FontWeight.bold)),
+    Text('4. Get slip with Transaction ID', style:TextStyle(fontSize:10)),
+    Text('5. Enter TxID + Upload slip below', style:TextStyle(fontSize:10)),
+    Text('6. Letter INSTANT to WhatsApp!', style:TextStyle(fontSize:10, fontWeight:FontWeight.bold, color:Colors.green)),
+  ])),
+  const SizedBox(height:12),
+  TextField(controller:txIdController, decoration:const InputDecoration(labelText:'Transaction ID *', border:OutlineInputBorder(), isDense:true, helperText:'System checks if already used')),
   const SizedBox(height:10),
   SizedBox(width:double.infinity, child:ElevatedButton.icon(onPressed:() async { final XFile? f=await ImagePicker().pickImage(source:ImageSource.gallery); if(f!=null) setState(()=>slipPath=f.path); }, icon:const Icon(Icons.upload), label:Text(slipPath==null?'Upload Clear MoMo Slip *':'Slip Selected ✓'), style:ElevatedButton.styleFrom(backgroundColor:Colors.orange, foregroundColor:Colors.white))),
-  const SizedBox(height:6),
-  TextField(controller:txIdController, decoration:const InputDecoration(labelText:'Transaction ID *', border:OutlineInputBorder(), isDense:true)),
-  const SizedBox(height:12),
+  const SizedBox(height:14),
   SizedBox(width:double.infinity, height:50, child:ElevatedButton.icon(icon:verifying?const SizedBox(width:14,height:14,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)):const Icon(Icons.send), label:Text(verifying?'Verifying...':'Verify & Send Letter to WhatsApp INSTANTLY', style:const TextStyle(fontSize:11, fontWeight:FontWeight.bold)), style:ElevatedButton.styleFrom(backgroundColor:Colors.green, foregroundColor:Colors.white), onPressed:verifying?null:gen)),
+  const SizedBox(height:14),
+  TextField(controller:whatsappController, decoration:const InputDecoration(labelText:'WhatsApp Number to RECEIVE Letter INSTANTLY *', border:OutlineInputBorder(), isDense:true, prefixIcon:Icon(Icons.chat, color:Colors.green)), maxLength:10, keyboardType:TextInputType.phone),
+  const Text('Letter will be sent INSTANTLY to this WhatsApp number', style:TextStyle(fontSize:10, color:Colors.green, fontWeight:FontWeight.bold)),
+  const SizedBox(height:20),
  ])));
 }
 }
