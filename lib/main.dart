@@ -20,26 +20,22 @@ bool consent=false; String? slipPath; bool verifying=false; bool checkingSassa=f
 
 String get safePhone=>phoneController.text.trim(); String get safeWa=>whatsappController.text.trim();
 
-// REAL SASSA INQUIRY - Free Check Button
 Future<void> checkSassaStatus() async {
   if(idController.text.length!=13){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Please enter your 13-digit ID number first')));return;}
   if(safePhone.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Please enter your phone number linked to SASSA')));return;}
   setState(()=>checkingSassa=true);
   try{
-    // Try SASSA SRD API - Official inquiry endpoint
     final response = await http.post(
       Uri.parse('https://srd.sassa.gov.za/srd/api/status'),
       headers: {'Content-Type':'application/json'},
       body: jsonEncode({'id_number': idController.text, 'phone': safePhone}),
     ).timeout(const Duration(seconds: 10));
-
     String message = 'SASSA Status Checked for ID: ${idController.text}\n\n';
     if(response.statusCode==200){
       message += 'Response from SASSA: ${response.body}\n\nYour information was sent directly to SASSA inquiry system. Please check your phone for SMS from SASSA.';
     } else {
-      message += 'Your request has been sent to SASSA inquiry system for ID ${idController.text}. SASSA will reply via SMS to $safePhone. If no reply in 24 hours, dial *134*7737# or visit srd.sassa.gov.za to check status.\n\nReason: ${selectedTown} - ${selectedLetter} requested.';
+      message += 'Your request has been sent to SASSA inquiry system for ID ${idController.text}. SASSA will reply via SMS to $safePhone. If no reply in 24 hours, dial *134*7737# or visit srd.sassa.gov.za to check status.\n\nReason: $selectedTown - $selectedLetter requested.';
     }
-
     if(!mounted) return;
     showDialog(context: context, builder: (c)=>AlertDialog(
       title: const Text('SASSA Inquiry Sent - Free Check 24/7', style:TextStyle(fontSize:14, fontWeight:FontWeight.bold)),
@@ -158,11 +154,4 @@ Widget buildStep2(){
   const SizedBox(height:4),
   const Text('The PDF will be sent instantly to the WhatsApp number you enter below.', style:TextStyle(fontSize:11, color:Colors.grey)),
   const SizedBox(height:12),
-  TextField(controller:whatsappController, autofocus:true, decoration:const InputDecoration(labelText:'Enter WhatsApp Number To Receive PDF Letter *', border:OutlineInputBorder(), isDense:false, prefixIcon:Icon(Icons.chat, color:Colors.green, size:28), hintText:'e.g. 0839258423'), maxLength:10, keyboardType:TextInputType.phone, style:TextStyle(fontSize:16, fontWeight:FontWeight.bold)),
-  const SizedBox(height:24),
-  SizedBox(width:double.infinity, height:56, child:ElevatedButton.icon(icon:verifying?const SizedBox(width:18,height:18,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)):const Icon(Icons.send, size:24), label:Text(verifying?'Sending PDF To WhatsApp...':'Send My PDF Letter To This WhatsApp Number Now', style:const TextStyle(fontSize:13, fontWeight:FontWeight.bold)), style:ElevatedButton.styleFrom(backgroundColor:Colors.green, foregroundColor:Colors.white), onPressed:verifying?null:sendToWhatsApp)),
-  const SizedBox(height:16),
-  TextButton.icon(onPressed:(){setState(()=>step2=false);}, icon:const Icon(Icons.arrow_back, size:16), label:const Text('Back To Payment Screen', style:TextStyle(fontSize:11))),
- ]));
-}
-}
+  TextField(controller:whatsappController, autofocus:true
