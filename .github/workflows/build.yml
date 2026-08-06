@@ -19,20 +19,27 @@ jobs:
           flutter-version: '3.19.3'
           channel: 'stable'
 
-      - name: Fix Internet Permission - SASSA Host Stable
+      - name: Create Android project with V2 embedding
         run: |
+          flutter create . --platforms=android --project-name papersready_sa || true
           mkdir -p android/app/src/main
+
+      - name: Fix Internet Permission - SASSA Host Stable V2
+        run: |
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-              <application android:usesCleartextTraffic="true" android:label="PapersReady SA" android:name="${applicationName}" android:icon="@mipmap/launcher_icon">
+              <application android:label="PapersReady SA" android:name="${applicationName}" android:icon="@mipmap/launcher_icon" android:usesCleartextTraffic="true">
                   <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:theme="@style/LaunchTheme" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize">
-                      <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
-                      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                      <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme"/>
+                      <intent-filter android:autoVerify="true">
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
                   </activity>
-                  <meta-data android:name="flutterEmbedding" android:value="2" />
+                  <meta-data android:name="flutterEmbedding" android:value="2"/>
               </application>
           </manifest>
           EOF
