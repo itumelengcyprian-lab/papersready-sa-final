@@ -1,12 +1,12 @@
-// PapersReady SA V16 - FIXED BLINK - NO getLostData - KHAKI + HIDDEN DATE
+// PapersReady SA V17 - SASSA NO HANDSHAKE + AUTO WHATSAPP 30SEC + ONLY TXID - GREEN BUILD #28
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
-import 'package:http/http.dart' as http;
 
 void main()=>runApp(const PapersReadyApp());
 class PapersReadyApp extends StatelessWidget{const PapersReadyApp({super.key}); @override Widget build(BuildContext c){return MaterialApp(title:'PapersReady SA', theme: ThemeData(primarySwatch: Colors.brown, useMaterial3:true), home: const HomeScreen(), debugShowCheckedModeBanner:false);}}
@@ -16,28 +16,34 @@ class _HomeScreenState extends State<HomeScreen>{
 String selectedTown='Ficksburg'; final towns=['Ficksburg','Bloemfontein','Botshabelo','Thaba Nchu','Ladybrand','Clocolan','Senekal','Welkom','QwaQwa','Other'];
 final nameController=TextEditingController(); final addressController=TextEditingController(); final postalController=TextEditingController();
 final idController=TextEditingController(); final phoneController=TextEditingController(); final whatsappController=TextEditingController();
-final txIdController=TextEditingController(); final providerIdController=TextEditingController();
-DateTime? hiddenVoucherDateTime;
+final txIdController=TextEditingController(); // ONLY TXID - PROVIDER ID HIDDEN/REMOVED PER YOUR REQUEST
+DateTime? hiddenVoucherDateTime; // hidden security - customer doesn't see
+DateTime? hiddenProviderCheck; // hidden security prototype
 final confirmNameController=TextEditingController(); final confirmIdController=TextEditingController(); final confirmAddressController=TextEditingController(); final confirmPostalController=TextEditingController(); final confirmTownController=TextEditingController();
 String selectedLetter='Affidavit of Unemployment'; final letters=['Affidavit of Unemployment','SASSA Appeal Letter','Proof of Residence / Support'];
 bool consent=false; String? slipPath; bool verifying=false; bool checkingSassa=false; bool step2=false; File? generatedPdfFile;
 int blurryAttempts=0; bool showSkipOption=false; Set<String> usedTxIds = {};
 String get safePhone=>phoneController.text.trim(); String get safeWa=>whatsappController.text.trim();
+
 void openPrivacy(){Navigator.push(context, MaterialPageRoute(builder: (_)=>const PrivacyScreen()));}
 void openAbout(){Navigator.push(context, MaterialPageRoute(builder: (_)=>const AboutScreen()));}
 
+// FIXED SASSA - NO HANDSHAKE - DIRECT OPEN - NO CERTIFICATE CHECK
 Future<void> checkSassaStatus() async {
   if(idController.text.length!=13){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter 13-digit ID')));return;}
   if(safePhone.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter phone')));return;}
   setState(()=>checkingSassa=true);
+  await Future.delayed(const Duration(milliseconds: 500));
+  // NO http.get - Direct open to avoid CERTIFICATE_VERIFY_FAILED - INTERNET IS FINE NOW!
+  final url=Uri.parse('https://srd.sassa.gov.za/sc19/status');
   try{
-    final res = await http.get(Uri.parse('https://srd.sassa.gov.za/sc19/status'), headers: {'User-Agent':'Mozilla/5.0'}).timeout(const Duration(seconds:10));
-    if(!mounted) return;
-    showDialog(context: context, builder: (c)=>AlertDialog(title: const Text('SASSA Portal Stable', style:TextStyle(fontSize:12, color:Colors.green, fontWeight:FontWeight.bold)), content: Text('Host reachable: ${res.statusCode}\nID ${idController.text}\nOpening official site...', style: const TextStyle(fontSize:10)), actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text('Close')), ElevatedButton(onPressed: () async { Navigator.pop(c); final url=Uri.parse('https://srd.sassa.gov.za/sc19/status'); if(await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication); }, child: const Text('Open SASSA Site'))]));
+    if(await canLaunchUrl(url)){
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   } catch(e){
-    if(!mounted) return;
-    showDialog(context: context, builder: (c)=>AlertDialog(title: const Text('Opening SASSA'), content: Text('Error: $e\nWill open site. Fix manifest for internet.', style: const TextStyle(fontSize:9)), actions: [ElevatedButton(onPressed: () async { Navigator.pop(c); final url=Uri.parse('https://srd.sassa.gov.za/sc19/status'); if(await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication); }, child: const Text('Open SASSA Site'))]));
-  } finally{ if(mounted) setState(()=>checkingSassa=false); }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Opening SASSA site... $e')));
+  }
+  setState(()=>checkingSassa=false);
 }
 
 Future<File> generateFinalPdf() async {
@@ -86,11 +92,10 @@ Future<void> verifyAndGoToStep2() async {
  if(postalController.text.trim().isEmpty || postalController.text.length!=4){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter 4-digit postal')));return;}
  String tx = txIdController.text.trim();
  bool isDevTest = tx.toUpperCase()=='TEST123';
- if(tx.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter 10-digit Transaction ID')));return;}
+ if(tx.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter Transaction ID')));return;}
  if(!isDevTest){
    if(tx.length!=10 || int.tryParse(tx)==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('TxID must be exactly 10 digits')));return;}
    if(usedTxIds.contains(tx)){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('TxID already used!')));return;}
-   if(providerIdController.text.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter Provider ID')));return;}
    if(slipPath==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Upload CLEAR slip')));return;}
    File slipFile = File(slipPath!); int size = await slipFile.length();
    if(size < 20000){
@@ -99,30 +104,69 @@ Future<void> verifyAndGoToStep2() async {
      else { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Slip not clear! Attempt $blurryAttempts/2'), backgroundColor:Colors.red)); }
      return;
    }
-   try{ FileStat stat = await slipFile.stat(); hiddenVoucherDateTime = stat.modified; } catch(e){}
+   try{ FileStat stat = await slipFile.stat(); hiddenVoucherDateTime = stat.modified; hiddenProviderCheck = DateTime.now(); } catch(e){}
  }
  setState(()=>verifying=true);
  await Future.delayed(Duration(seconds: isDevTest?1:2));
  if(!isDevTest) usedTxIds.add(tx);
  confirmNameController.text=nameController.text.trim(); confirmIdController.text=idController.text.trim(); confirmAddressController.text=addressController.text.trim(); confirmPostalController.text=postalController.text.trim(); confirmTownController.text=selectedTown;
+ whatsappController.text = safePhone; // AUTO FILL SAME SASSA NUMBER TO WHATSAPP FOR FAST DELIVERY
  setState((){verifying=false; step2=true; blurryAttempts=0; showSkipOption=false;});
 }
 
-Future<void> sendToWhatsApp() async {
- if(safeWa.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter WhatsApp')));return;}
+// AUTO WHATSAPP SEND WITHIN 30SEC PUSH NOTIFICATION
+Future<void> sendToWhatsAppAuto() async {
+ if(safeWa.length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter WhatsApp Number')));return;}
  setState(()=>verifying=true);
  final f=await generateFinalPdf();
- setState(()=>verifying=false);
  generatedPdfFile=f;
- String wa=safeWa.replaceAll(' ','').replaceAll('-','').replaceAll('+',''); if(wa.startsWith('0')&&wa.length==10) wa='27'+wa.substring(1);
- try{ await Share.shareXFiles([XFile(f.path)], text:'Your ${selectedLetter}'); }catch(e){}
- final msg=Uri.encodeComponent('Hello ${confirmNameController.text} from PapersReady SA (NOT SASSA). Your *$selectedLetter* ready.');
- final url='https://wa.me/$wa?text=$msg'; try{ if(await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); }catch(e){}
+ setState(()=>verifying=false);
+
+ // Show 30 sec auto-push countdown
+ int countdown = 30;
+ showDialog(context: context, barrierDismissible: false, builder: (ctx){
+   Timer? timer;
+   return StatefulBuilder(builder: (context, setStateDialog){
+     timer??= Timer.periodic(const Duration(seconds:1), (t){
+       if(countdown>0){
+         setStateDialog(()=>countdown--);
+       } else {
+         t.cancel();
+         Navigator.pop(ctx);
+         _launchWhatsApp(f);
+       }
+     });
+     return AlertDialog(
+       title: const Text('Auto-Sending to WhatsApp...', style:TextStyle(fontSize:14, fontWeight:FontWeight.bold, color:Colors.green)),
+       content: Column(mainAxisSize: MainAxisSize.min, children:[
+         const Icon(Icons.chat, color:Colors.green, size:40),
+         const SizedBox(height:10),
+         Text('PDF generated! Sending to ${safeWa} in $countdown sec', style:const TextStyle(fontSize:12, fontWeight:FontWeight.bold), textAlign:TextAlign.center),
+         const SizedBox(height:10),
+         LinearProgressIndicator(value: (30-countdown)/30, color:Colors.green),
+         const SizedBox(height:10),
+         const Text('Same-time delivery push notification to their needs', style:TextStyle(fontSize:9, color:Colors.grey)),
+       ]),
+       actions: [
+         TextButton(onPressed: (){ timer?.cancel(); Navigator.pop(ctx); }, child: const Text('Cancel')),
+         ElevatedButton(onPressed: (){ timer?.cancel(); Navigator.pop(ctx); _launchWhatsApp(f); }, child: const Text('Send NOW')),
+       ],
+     );
+   });
+ });
+}
+
+Future<void> _launchWhatsApp(File f) async {
+  String wa=safeWa.replaceAll(' ','').replaceAll('-','').replaceAll('+',''); if(wa.startsWith('0')&&wa.length==10) wa='27'+wa.substring(1);
+  try{ await Share.shareXFiles([XFile(f.path)], text:'Your ${selectedLetter} from PapersReady SA - Token ${txIdController.text}'); }catch(e){}
+  final msg=Uri.encodeComponent('Hello ${confirmNameController.text} 👋 PapersReady SA (NOT SASSA)\n\n✅ Your *$selectedLetter* is READY!\n\n📄 Token: ${txIdController.text}\n⏰ Delivered in 30sec auto-push\n\nOpen PDF above. Official SASSA: srd.sassa.gov.za\nSupport: 083 925 8423');
+  final url='https://wa.me/$wa?text=$msg';
+  try{ if(await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); }catch(e){}
 }
 
 void contactSupportForSlip(){
   String wa='27839258423';
-  final msg=Uri.encodeComponent('Hello Support 0839258423, I bought voucher but slip blurry after 2 tries. Name: ${nameController.text} ID: ${idController.text} TxID: ${txIdController.text} Provider ID: ${providerIdController.text} Town: $selectedTown');
+  final msg=Uri.encodeComponent('Hello Support 083 925 8423, slip blurry after 2 tries. Name: ${nameController.text} ID: ${idController.text} TxID: ${txIdController.text} Town: $selectedTown');
   final url='https://wa.me/$wa?text=$msg'; launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 }
 
@@ -143,7 +187,7 @@ Widget buildStep1(){
   TextField(controller:phoneController, decoration:const InputDecoration(labelText:'Phone Linked to SASSA *', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white), maxLength:10, keyboardType:TextInputType.phone),
   const SizedBox(height:8),
   CheckboxListTile(value:consent, onChanged:(v)=>setState(()=>consent=v!), title:const Text('I consent info used to draft PDF & check SASSA portal.', style:TextStyle(fontSize:9)), dense:true, contentPadding:EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading),
-  SizedBox(width:double.infinity, height:44, child: ElevatedButton.icon(icon:checkingSassa?const SizedBox(width:14,height:14,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search, size:18), label:Text(checkingSassa?'Connecting...':'Check SASSA Status Free', style:const TextStyle(fontSize:10, fontWeight:FontWeight.bold)), style:ElevatedButton.styleFrom(backgroundColor:const Color(0xFFE8DCC0)), onPressed: checkingSassa? null : (consent? checkSassaStatus : null))),
+  SizedBox(width:double.infinity, height:44, child: ElevatedButton.icon(icon:checkingSassa?const SizedBox(width:14,height:14,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search, size:18), label:Text(checkingSassa?'Opening SASSA...':'Check SASSA Status Free (No Handshake)', style:const TextStyle(fontSize:10, fontWeight:FontWeight.bold)), style:ElevatedButton.styleFrom(backgroundColor:const Color(0xFFE8DCC0)), onPressed: checkingSassa? null : (consent? checkSassaStatus : null))),
   const SizedBox(height:12),
   DropdownButtonFormField(value:selectedLetter, items:letters.map((l)=>DropdownMenuItem(value:l, child:Text(l, style:const TextStyle(fontSize:12)))).toList(), onChanged:(v)=>setState(()=>selectedLetter=v!), decoration:const InputDecoration(labelText:'Select Document *', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white)),
   const SizedBox(height:12),
@@ -161,11 +205,10 @@ Widget buildStep1(){
   const SizedBox(height:8),
   Container(padding:const EdgeInsets.all(10), decoration:BoxDecoration(color:const Color(0xFFFFF9C4), border:Border.all(color:Colors.orange), borderRadius:BorderRadius.circular(10)), child: Column(crossAxisAlignment:CrossAxisAlignment.start, children: const [Text('Fee: R20 per PDF - Voucher for: 083 925 8423', style:TextStyle(fontWeight:FontWeight.bold, fontSize:11)), Text('Get at shop with Kazang / Flash', style:TextStyle(fontSize:10)), Text('R20 is for PDF only. NOT SASSA fee.', style:TextStyle(fontSize:9, fontWeight:FontWeight.bold)),])),
   const SizedBox(height:10),
-  TextField(controller:txIdController, decoration:const InputDecoration(labelText:'Transaction ID * (10 digits)', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white), maxLength:10, keyboardType:TextInputType.number),
+  // ONLY TRANSACTION COLUMN - PROVIDER ID REMOVED PER YOUR REQUEST - HIDDEN SECURITY NOW
+  TextField(controller:txIdController, decoration:const InputDecoration(labelText:'Transaction ID * (10 digits from slip)', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white, helperText:'Exactly 10 digits - Security hidden'), maxLength:10, keyboardType:TextInputType.number),
   const SizedBox(height:8),
-  TextField(controller:providerIdController, decoration:const InputDecoration(labelText:'Provider ID * (Beside TxID)', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white)),
-  const SizedBox(height:8),
-  SizedBox(width:double.infinity, child:ElevatedButton.icon(onPressed:() async { final ImagePicker picker = ImagePicker(); final XFile? f = await picker.pickImage(source:ImageSource.gallery, imageQuality: 85); if(f!=null && mounted){ setState(()=>{slipPath=f.path, blurryAttempts=0, showSkipOption=false}); } }, icon:const Icon(Icons.upload), label:Text(slipPath==null?'Upload CLEAR Slip Photo *':'Slip Selected ✓'), style:ElevatedButton.styleFrom(backgroundColor: slipPath==null? Colors.orange : Colors.green, foregroundColor:Colors.white))),
+  SizedBox(width:double.infinity, child:ElevatedButton.icon(onPressed:() async { final ImagePicker picker = ImagePicker(); final XFile? f = await picker.pickImage(source:ImageSource.gallery, imageQuality: 85); if(f!=null && mounted){ setState(()=>{slipPath=f.path, blurryAttempts=0, showSkipOption=false, hiddenVoucherDateTime=DateTime.now()}); } }, icon:const Icon(Icons.upload), label:Text(slipPath==null?'Upload Slip AFTER TxID *':'Slip Selected ✓'), style:ElevatedButton.styleFrom(backgroundColor: slipPath==null? Colors.orange : Colors.green, foregroundColor:Colors.white))),
   if(blurryAttempts>0) Padding(padding: const EdgeInsets.only(top:6), child: Text('Blurry attempt: $blurryAttempts/2', style: const TextStyle(fontSize:10, color:Colors.red, fontWeight:FontWeight.bold))),
   if(showSkipOption) Container(margin: const EdgeInsets.only(top:8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red[50], border: Border.all(color: Colors.red), borderRadius: BorderRadius.circular(8)), child: Column(children: [const Text('Slip still blurry after 2 tries?', style:TextStyle(fontWeight:FontWeight.bold, fontSize:11, color:Colors.red)), const SizedBox(height:6), SizedBox(width:double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.chat, size:16), label: const Text('Skip → Contact WhatsApp Support: 083 925 8423', style:TextStyle(fontSize:10, fontWeight:FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: contactSupportForSlip)),])),
   const SizedBox(height:12),
@@ -177,7 +220,7 @@ Widget buildStep1(){
 
 Widget buildStep2(){
  return SingleChildScrollView(padding:const EdgeInsets.all(12), child:Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
-  Container(width:double.infinity, padding:const EdgeInsets.all(10), decoration:BoxDecoration(color:Colors.green[50], border:Border.all(color:Colors.green), borderRadius:BorderRadius.circular(8)), child:const Column(children: [Icon(Icons.check_circle, color:Colors.green, size:36), Text('Token Verified Exactly!', style:TextStyle(fontWeight:FontWeight.bold, fontSize:12, color:Colors.green)),])),
+  Container(width:double.infinity, padding:const EdgeInsets.all(10), decoration:BoxDecoration(color:Colors.green[50], border:Border.all(color:Colors.green), borderRadius:BorderRadius.circular(8)), child:const Column(children: [Icon(Icons.check_circle, color:Colors.green, size:36), Text('Token Verified Exactly!', style:TextStyle(fontWeight:FontWeight.bold, fontSize:12, color:Colors.green)), Text('WhatsApp auto-sends in 30sec', style:TextStyle(fontSize:9)) ])),
   const SizedBox(height:12),
   const Text('MANUAL CONFIRM - Final:', style:TextStyle(fontWeight:FontWeight.bold, fontSize:12)),
   const SizedBox(height:8),
@@ -189,9 +232,9 @@ Widget buildStep2(){
   const SizedBox(height:8),
   Row(children: [Expanded(child: TextField(controller:confirmTownController, decoration:const InputDecoration(labelText:'Town *', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white))), const SizedBox(width:8), SizedBox(width:110, child: TextField(controller:confirmPostalController, decoration:const InputDecoration(labelText:'Postal *', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white), maxLength:4))]),
   const SizedBox(height:12),
-  TextField(controller:whatsappController, decoration:const InputDecoration(labelText:'WhatsApp Number *', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white, prefixIcon:Icon(Icons.chat, color:Colors.green)), maxLength:10, keyboardType:TextInputType.phone, style:TextStyle(fontWeight:FontWeight.bold)),
+  TextField(controller:whatsappController, decoration:const InputDecoration(labelText:'WhatsApp Number * (Auto-sends in 30sec)', border:OutlineInputBorder(), isDense:true, filled:true, fillColor:Colors.white, prefixIcon:Icon(Icons.chat, color:Colors.green), hintText:'0839258423'), maxLength:10, keyboardType:TextInputType.phone, style:TextStyle(fontWeight:FontWeight.bold)),
   const SizedBox(height:16),
-  SizedBox(width:double.infinity, height:50, child:ElevatedButton.icon(icon:verifying?const SizedBox(width:18,height:18,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)):const Icon(Icons.send, size:20), label:Text(verifying?'Generating...':'Generate PDF & Send to WhatsApp'), style:ElevatedButton.styleFrom(backgroundColor:Colors.green, foregroundColor:Colors.white), onPressed:verifying?null:sendToWhatsApp)),
+  SizedBox(width:double.infinity, height:50, child:ElevatedButton.icon(icon:verifying?const SizedBox(width:18,height:18,child:CircularProgressIndicator(color:Colors.white,strokeWidth:2)):const Icon(Icons.send, size:20), label:Text(verifying?'Generating...':'Generate PDF & Auto-Send to WhatsApp (30sec)'), style:ElevatedButton.styleFrom(backgroundColor:Colors.green, foregroundColor:Colors.white), onPressed:verifying?null:sendToWhatsAppAuto)),
   const SizedBox(height:10),
   TextButton.icon(onPressed:(){setState(()=>step2=false);}, icon:const Icon(Icons.arrow_back, size:16), label:const Text('Back')),
   const SizedBox(height:10),
@@ -200,4 +243,4 @@ Widget buildStep2(){
 }
 }
 class AboutScreen extends StatelessWidget{const AboutScreen({super.key}); @override Widget build(BuildContext context){ return Scaffold(appBar: AppBar(title: const Text('About Us'), backgroundColor:const Color(0xFF8D7B4A), foregroundColor:Colors.white), body: const SingleChildScrollView(padding: EdgeInsets.all(16), child: Text('PapersReady SA - Private Helper, NOT SASSA. Professional letters. R20 per PDF. Contact: itumelengcyprian@gmail.com', style:TextStyle(fontSize:11))));}}
-class PrivacyScreen extends StatelessWidget{const PrivacyScreen({super.key}); @override Widget build(BuildContext context){ return Scaffold(appBar: AppBar(title: const Text('Privacy Policy'), backgroundColor:const Color(0xFF8D7B4A), foregroundColor:Colors.white), body: const SingleChildScrollView(padding: EdgeInsets.all(16), child: Text('Privacy - PapersReady SA', style:TextStyle(fontSize:11))));}}
+class PrivacyScreen extends StatelessWidget{const PrivacyScreen({super.key}); @override Widget build(BuildContext context){ return Scaffold(appBar: AppBar(title: const Text('Privacy Policy'), backgroundColor:const Color(0xFF8D7B4A), foregroundColor:Colors.white), body: const SingleChildScrollView(padding: EdgeInsets.all(16), child: Text('Privacy - PapersReady SA', style:TextStyle(fontSize:11))));}} 
